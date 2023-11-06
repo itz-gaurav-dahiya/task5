@@ -164,9 +164,9 @@ app.put('/svr/Employees/:id', async (req, res) => {
 // Add a new employee
 app.post('/svr/Employees', async (req, res) => {
   try {
-    const { empCode, name, department, designation, salary, gender } = req.body;
-    const sql = 'INSERT INTO employees (empCode, name, department, designation, salary, gender) VALUES ($1, $2, $3, $4, $5, $6)';
-    const values = [empCode, name, department, designation, salary, gender];
+    const { empcode, name, department, designation, salary, gender } = req.body;
+    const sql = 'INSERT INTO employees (empcode, name, department, designation, salary, gender) VALUES ($1, $2, $3, $4, $5, $6)';
+    const values = [empcode, name, department, designation, salary, gender];
     const result = await client.query(sql, values);
     res.status(201).send('New employee added successfully');
   } catch (error) {
