@@ -1,197 +1,195 @@
-const express = require('express');
-const app = express();
-const { Client } = require('pg');
-const port = process.env.PORT || 2410;
+import React, { Component } from "react";
+import http from './httpService'
+class NewEmployeeForm extends Component {
+  state = {
+      empcode: "",
+      name: "",
+      department: "", // Default value for department dropdown
+      designation: "", // Default value for designation dropdown
+      salary: "",
+      gender: "", // Default value for gender radio
+      edit:false
+  };
 
-const client = new Client({
-  user: 'postgres', // Change to your PostgreSQL username
-  password: 'gaurav@Dahiya', // Change to your PostgreSQL password
-  database: 'postgres', // Change to your PostgreSQL database name
-  port: 5432,
-  host: 'db.amfwwfhjovvvryqpgwpw.supabase.co', // Change to your PostgreSQL database host
-  ssl: { rejectUnauthorized: false },
-});
+  handleInputChange = (e) => {
+   let s1={...this.state};
+   let {currentTarget:input}=e;
+   s1[input.name]=input.value;
+   this.setState(s1);
+   console.log(s1)
+  };
 
-client.connect()
-  .then(() => {
-    console.log('Connected to PostgreSQL');
-  })
-  .catch(err => {
-    console.error('Error connecting to PostgreSQL:', err);
-  });
-
-app.use(express.json());
-
-// CORS setup
-app.use(function (req, res, next) {
-  res.header("Access-Control-Allow-Origin", '*');
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE, HEAD");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  next();
-});
-
-// Define your routes for interacting with the PostgreSQL database here.
-
-// Get all employees
-app.get('/svr/Employees', async (req, res) => {
-  try {
-    const department = req.query.department;
-    const designation = req.query.designation;
-    const gender = req.query.gender;
-
-    let filters = [];
-    let values = [];
-    let index = 1;
-
-    if (department) {
-      filters.push(`department = $${index++}`);
-      values.push(department);
-    }
-
-    if (designation) {
-      filters.push(`designation = $${index++}`);
-      values.push(designation);
-    }
-
-    if (gender) {
-      filters.push(`gender = $${index++}`);
-      values.push(gender);
-    }
-
-    let whereClause = '';
-    if (filters.length > 0) {
-      whereClause = `WHERE ${filters.join(' AND ')}`;
-    }
-
-    const sql = `SELECT * FROM employees ${whereClause}`;
-    const result = await client.query(sql, values);
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+async componentDidMount(){
+  this.fetchData();
+}
+async componentDidUpdate(prevProps ,prevState){
+  if(prevProps!==this.props){
+      this.fetchData();
   }
-});
+}
 
-// Get an individual employee by ID
-app.get('/svr/Employees/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const sql = 'SELECT * FROM employees WHERE id = $1';
-    const result = await client.query(sql, [id]);
+async fetchData() {
+  const { id } = this.props.match.params;
+  if (id) {
+    let response = await http.get(`/Employees/${id}`);
+    let { data } = response;
+    // console.log('resp',response)
+    console.log('data',data)
+    this.setState({ empcode:data.empcode,name:data.name, department:data.department,designation:data.designation,
+    salary:data.salary, gender:data.gender,
+    edit:'', edit: true }); // Set edit to true when editing
+  } else {
+    
+    this.setState({ empcode: '',name: '', department: '',designation: '',
+    salary:'', gender:'',
+    edit:'', edit: false });
+  }
+  console.log(this.state);
+}
 
-    if (result.rowCount === 0) {
-      res.status(404).send(`Employee with ID ${id} not found`);
-    } else {
-      res.json(result.rows[0]);
+  handleSubmit = (event) => {
+    let {edit}=this.state
+    if(edit){
+      this.putData(this.state)
     }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/svr/Employees/department/:department', function (req, res) {
-    const department = req.params.department;
-    const designation = req.query.designation;
-    const gender = req.query.gender;
-
-    const sql = 'SELECT * FROM employees WHERE department = $1';
-    const values = [department];
-
-    client.query(sql, values, function (err, result) {
-        if (err) {
-            res.status(404).send(err.message);
-        } else {
-            if (designation) {
-                result.rows = result.rows.filter((s) => s.designation === designation);
-            }
-            if (gender) {
-                result.rows = result.rows.filter((s) => s.gender === gender);
-            }
-            res.send(result.rows);
-        }
-    });
-});
-
-app.get('/svr/Employees/designation/:designation', function (req, res) {
-    const designation = req.params.designation;
-    const department = req.query.department;
-    const gender = req.query.gender;
-
-    const sql = 'SELECT * FROM employees WHERE designation = $1';
-    const values = [designation];
-
-    client.query(sql, values, function (err, result) {
-        if (err) {
-            res.status(404).send(err.message);
-        } else {
-            if (department) {
-                result.rows = result.rows.filter((s) => s.department === department);
-            }
-            if (gender) {
-                result.rows = result.rows.filter((s) => s.gender === gender);
-            }
-            res.send(result.rows);
-        }
-    });
-});
-
-
-// Update an individual employee by ID
-app.put('/svr/Employees/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { empCode, name, department, designation, salary, gender } = req.body;
-
-    const sql = `
-      UPDATE employees
-      SET empCode = $1, name = $2, department = $3, designation = $4, salary = $5, gender = $6
-      WHERE id = $7
-    `;
-
-    const values = [empCode, name, department, designation, salary, gender, id];
-
-    const result = await client.query(sql, values);
-
-    if (result.rowCount === 0) {
-      res.status(404).send(`Employee with ID ${id} not found`);
-    } else {
-      res.status(200).send(`Employee with ID ${id} has been updated`);
+    else{
+      this.postData(this.state)
     }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    this.setState({edit:false})
+    this.props.history.push('/Employees')
+  };
+
+
+  async putData(data){
+  const { id } = this.props.match.params;
+
+    let response=await http.put(`/Employees/${id}`,data)
+    // this.props.history.push('/Employees')
+
   }
-});
-
-// Add a new employee
-app.post('/svr/Employees', async (req, res) => {
-  try {
-    const { empcode, name, department, designation, salary, gender } = req.body;
-    const sql = 'INSERT INTO employees (empcode, name, department, designation, salary, gender) VALUES ($1, $2, $3, $4, $5, $6)';
-    const values = [empcode, name, department, designation, salary, gender];
-    const result = await client.query(sql, values);
-    res.status(201).send('New employee added successfully');
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+ async postData(data){
+     let response= await http.post('/Employees',data)
+    //  this.props.history.push('/Employees')
   }
-});
 
-// Delete an employee by ID
-app.delete('/svr/Employees/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const sql = 'DELETE FROM employees WHERE id = $1';
-    const result = await client.query(sql, [id]);
+  render() {
+    return (
+     <div className="container ">
+      <div className="row">
+        <h2>New Employee Form</h2>
+        <form onSubmit={this.handleSubmit}>
+          <div className="col-12 ">
+            <label>
+              Employee Code:
+            </label>
+              <input
+                type="text"
+                name="empcode"
+                value={this.state.empcode}
+                onChange={this.handleInputChange}
+                className="form-control "
+                disabled={this.state.edit?true:false}
+              />
+          </div>
+          <div  className="col-12 ">
+            <label>
+              Name:
+            </label>
+              <input
+                type="text"
+                name="name"
+                value={this.state.name}
+                onChange={this.handleInputChange}
+                className="form-control "
 
-    if (result.rowCount === 0) {
-      res.status(404).send(`Employee with ID ${id} not found`);
-    } else {
-      res.status(200).send(`Employee with ID ${id} has been deleted`);
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+              />
+          </div>
+          <div  className="col-12 ">
+            <label>
+              Department:
+              </label>
+              <select
+                name="department"
+                value={this.state.department}
+                onChange={this.handleInputChange}
+                className="form-select "
+              >
+                <option value=''>select</option>
+                <option value="Finance">Finance</option>
+                <option value="HR">HR</option>
+                <option value="IT">IT</option>
+                <option value="Technology">Technology</option>
+                <option value="Marketing">Marketing</option>
+
+                {/* Add more departments as needed */}
+              </select>
+           
+          </div>
+          <div className="col-12 ">
+            <label>
+              Designation:
+              </label>
+              <select
+                name="designation"
+                value={this.state.designation}
+                onChange={this.handleInputChange}
+                className="form-select "
+              >
+                <option value=''>select</option>
+                <option value="Manager">Manager</option>
+                <option value="Supervisor">Supervisor</option>
+                <option value="Associate">Associate</option>
+                <option value="Trainee">Trainee</option>
+                <option value="VP">VP</option>
+                {/* Add more designations as needed */}
+              </select>
+           
+          </div>
+          <div className="col-12 ">
+            <label>
+            </label>
+              Salary:
+              <input
+                type="number"
+                name="salary"
+                value={this.state.salary}
+                onChange={this.handleInputChange}
+                className="form-control "
+              />
+          </div>
+          <div className="col-12 ">
+            <label>Gender:</label>
+            <div>
+              <input
+                type="radio"
+                name="gender"
+                value="Male"
+                checked={this.state.gender === "Male"}
+                onChange={this.handleInputChange}
+                
+              />
+              <label>Male</label>
+            </div>
+            <div>
+              <input
+                type="radio"
+                name="gender"
+                value="Female"
+                checked={this.state.gender === "Female"}
+                onChange={this.handleInputChange}
+              />
+              <label>Female</label>
+            </div>
+            {/* Add more gender options if needed */}
+          </div>
+          <div>
+            <button type="submit" onClick={()=>this.handleSubmit()} className="btn btn-primary ">Submit</button>
+          </div>
+        </form>
+      </div>
+      </div>
+    );
   }
-});
+}
 
-// Start the Express.js server
-app.listen(port, () => {
-  console.log(`Node app listening on port ${port}!`);
-});
+export default NewEmployeeForm;
